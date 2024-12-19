@@ -1,0 +1,407 @@
+---
+title: "Data Management & Descriptive Statitics SAP"
+author: "Saleh Abednezhad"
+date: "2024-2025"
+output:
+  pdf_document: null
+  word_document: default
+  latex_engine: xelatex
+always_allow_html: true
+editor_options:
+  markdown: null
+  wrap: 72
+---
+
+```{r setup, include=FALSE}
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+knitr::opts_chunk$set(echo = TRUE)
+install.packages(c("dplyr","ggplot2","corrplot","dagitty", "ggdag", "DiagrammeR","DiagrammeRsvg","rsvg"))
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+```
+
+```{r}
+
+## Import Data
+data <- read.table("C:/UHasselt/Courses/Project Learning from Data/Project Codes/final data.txt",
+                    header = TRUE, sep = ";", dec = "\t")
+```
+
+```{r}
+## Percentage missing values
+(colMeans(is.na(data)))*100
+
+## Data preparing
+data$Lutum <- as.numeric(as.character(data$Lutum))
+data$Sand <- as.numeric(as.character(data$Sand))
+data$Silt <- as.numeric(as.character(data$Silt))
+data$pH <- as.numeric(as.character(data$pH))
+data$C <- as.numeric(as.character(data$C))
+data$Cstock <- as.numeric(as.character(data$Cstock))
+
+clean_data <- data[-c(33, 36, 66),]
+summary(clean_data)
+clean_data <- na.omit(clean_data)
+summary(clean_data)
+removed_indices <- which(!complete.cases(data))
+removed_indices
+rows_greater_than_3 <- which(clean_data$C > 3)
+rows_greater_than_3
+clean_data <- clean_data[-c(12, 128, 254),]
+clean_data <- clean_data[clean_data$C <= 3, ]
+summary(clean_data)
+rows_greater_than_130 <- which(clean_data$Cstock > 130)
+rows_greater_than_130
+clean_data <- clean_data[-c(149, 349),]
+
+summary(data)
+summary(clean_data)
+
+clean_data$Region <- as.factor(clean_data$Region)
+count(clean_data,Region) 
+
+clean_data <- clean_data %>%
+  mutate(Region = case_when(
+    Region == "Kempeen" ~ "Kempen",
+    Region == "Keempen" ~ "Kempen",
+    Region == "Leemstrek" ~ "Leemstreek",
+    Region == "Lemstreek" ~ "Leemstreek",
+    TRUE ~ Region  
+  ))
+
+sort(clean_data$C)
+sort(clean_data$Cstock)
+
+summary(clean_data$Cstock)
+summary(clean_data$C)
+
+clean_data$Crop <- as.factor(clean_data$Crop)
+count(clean_data,Crop)
+
+class(clean_data$Region)
+clean_data$Region <- as.factor(clean_data$Region)
+clean_data$Crop <- as.factor(clean_data$Crop)
+```
+
+```{r}
+#Export clean data
+
+write.csv(clean_data, "C:/UHasselt/Courses/Project Learning from Data/Project Codes/Clean_data.txt",
+           row.names = FALSE)
+list.files("C:/UHasselt/Courses/Project Learning from Data/Project Codes/")
+```
+
+```{r}
+# Step 4: Exploratory Data Analysis (EDA)
+# Summary statistics by Region and Crop
+clean_data %>% 
+  group_by(Region, Crop) %>% 
+  summarize(mean_Cstock = mean(Cstock, na.rm = TRUE), 
+            sd_Cstock = sd(Cstock, na.rm = TRUE), 
+            n = n())
+```
+
+```{r}
+# Boxplot of Soil Carbon Stocks by Crop and Region
+
+counts <- clean_data %>%
+  group_by(Crop, Region) %>%
+  summarise(count = n())
+
+ggplot(clean_data, aes(x = Crop, y = Cstock, fill = Region)) +
+  geom_boxplot(width = 0.7) +
+  geom_jitter(aes(color = Region), width = 0.2, size = 2, alpha = 0.6) +
+    geom_text(data = counts, aes(x = Crop, y = max(clean_data$Cstock) + 5, label = paste("n =", count)),
+              position = position_dodge(width = 0.75), 
+              size = 3.5, # Adjusted text size
+              vjust = -0.5) + # Adjust vertical position of labels, color = "black") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  ) +
+  labs(title = "Soil Carbon Stocks by Crop and Region", 
+       x = "Crop Type", 
+       y = "Carbon Stock (Mg C/ha)") +
+  # Add some padding to the top of the plot for labels
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
+```
+
+```{r}
+# Boxplot of Soil Carbon Stocks by Region and Crop
+counts <- clean_data %>%
+  group_by(Region, Crop) %>%
+  summarise(count = n())
+
+ggplot(clean_data, aes(x = Region, y = Cstock, fill = Crop)) +
+  geom_boxplot(width = 0.7) +
+  geom_jitter(aes(color = Crop), width = 0.2, size = 2, alpha = 0.6) +
+  geom_text(
+    data = counts, 
+    aes(x = Region, y = max(clean_data$Cstock) + 5, label = paste("n =", count)),
+    position = position_dodge(width = 0.75),
+    size = 3.5, # Adjusted text size
+    vjust = -0.5
+  ) + 
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  ) +
+  labs(
+    title = "Soil Carbon Stocks by Region and Crop", 
+    x = "Region", 
+    y = "Carbon Stock (Mg C/ha)"
+  ) +
+  # Add some padding to the top of the plot for labels
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
+
+```
+
+```{r}
+# Scatter plot matrix for continuous variables
+pairs(clean_data[, c("Cstock", "Lutum", "Sand", "Silt", "pH")], 
+      main = "Scatterplot Matrix")
+
+ggplot(clean_data, aes(x = pH, y = Silt)) +
+  geom_point() + 
+  labs(title = "Scatter Plot of pH vs Silt", 
+       x = "pH", 
+       y = "Silt") +  
+  theme_minimal() 
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(clean_data, aes(x = pH, y = Silt, color = Region, size = Cstock)) +
+  geom_point(alpha = 0.7) +  # Adjust transparency with alpha
+  labs(
+    title = "Scatter Plot of pH vs Silt by Region",
+    x = "pH",
+    y = "Silt",
+    color = "Region",  # Legend title for color
+    size = "Carbon Stock"  # Legend title for size
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.position = "right"  # Place legend on the right side
+  )
+```
+
+```{r}
+# Correlation matrix
+cor_matrix <- cor(clean_data[, c("Lutum", "Sand", "Silt", "pH", "Cstock")])
+print(cor_matrix)
+
+# Visualize correlations
+corrplot(cor_matrix, method = "color")
+
+```
+
+```{r}
+install.packages("reshape2")
+
+library(ggplot2)
+library(reshape2)
+
+# Compute the correlation matrix
+cor_matrix <- cor(clean_data[, c("Lutum", "Sand", "Silt", "pH", "Cstock")])
+
+# Melt the correlation matrix into a long format
+cor_melted <- melt(cor_matrix)
+
+# Create the heatmap with size and color
+ggplot(cor_melted, aes(x = Var1, y = Var2, fill = value, size = abs(value))) +
+  geom_point(shape = 21, color = "black") +  # Use shape 21 for circles with borders
+  scale_fill_gradient2(
+    low = "blue", mid = "white", high = "red", midpoint = 0,
+    name = "Correlation"
+  ) +
+  scale_size_continuous(range = c(2, 10), name = "Correlation Magnitude") +
+  labs(
+    title = "Correlation Matrix with Color and Size",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    axis.text.y = element_text(size = 10),
+    legend.position = "right"
+  )
+```
+
+```{r}
+# Create interaction plot for Carbon Stock
+ggplot_interaction_cstock <- clean_data %>%
+  group_by(Region, Crop) %>%
+  summarise(
+    mean_Cstock = mean(Cstock, na.rm = TRUE),
+    se_Cstock = sd(Cstock, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = Crop, y = mean_Cstock, color = Region, group = Region)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_Cstock - se_Cstock, 
+                    ymax = mean_Cstock + se_Cstock), 
+                width = 0.2) +
+  theme_minimal() +
+  labs(
+    title = "Interaction Plot: Region and Crop on Carbon Stock",
+    x = "Crop Type",
+    y = "Mean Carbon Stock (Mg C/ha)"
+  )
+
+# Create interaction plot for pH
+ggplot_interaction_ph <- clean_data %>%
+  group_by(Region, Crop) %>%
+  summarise(
+    mean_pH = mean(pH, na.rm = TRUE),
+    se_pH = sd(pH, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = Crop, y = mean_pH, color = Region, group = Region)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_pH - se_pH, 
+                    ymax = mean_pH + se_pH), 
+                width = 0.2) +
+  theme_minimal() +
+  labs(
+    title = "Interaction Plot: Region and Crop on pH",
+    x = "Crop Type",
+    y = "Mean pH"
+  )
+
+# Print and save plots
+print(ggplot_interaction_cstock)
+print(ggplot_interaction_ph)
+
+# Save ggplot versions
+ggsave("interaction_plot_cstock.png", ggplot_interaction_cstock, width = 10, height = 6)
+ggsave("interaction_plot_ph.png", ggplot_interaction_ph, width = 10, height = 6)  
+```
+
+```{r}
+ggplot(clean_data, aes(x = Lutum, y = Cstock, color = Region)) +
+  geom_point() +
+  labs(x = "Lutum", y = "Carbon Stock (Mg C/ha)", color = "Region") +
+  theme_classic()
+```
+
+```{r}
+ggplot(clean_data, aes(x = Silt, y = Cstock, color = Region)) +
+  geom_point() +
+  scale_color_manual(values = c("Kempen" = "blue", "Leemstreek" = "orange", "other_region" = "green")) +
+  labs(x = "Silt", y = "Carbon Stock (Mg C/ha)", color = "Region") +
+  theme_classic()
+```
+
+```{r}
+library(dagitty)
+
+# Define the causal structure
+dag <- dagitty('
+dag {
+  "Region" -> "Cstock"
+  "Years" -> "Cstock"
+  "Crop" -> "Cstock"
+  "Lutum" -> "Cstock"
+  "Silt" -> "Cstock"
+  "Crop" -> "pH"
+  "Lutum" -> "pH"
+}
+')
+
+# Plot the DAG
+plot(dag)
+```
+
+```{r}
+library(ggdag)
+
+# Define the DAG
+dag <- dagify(
+  Cstock ~ Region + Years + Crop + Lutum + Silt,
+  pH ~ Crop + Lutum, 
+  exposure = "Crop",
+  outcome = "Cstock"
+)
+
+# Plot the DAG
+ggdag(dag) +
+  theme_minimal() +
+  ggtitle("Causal Graph for Cstock Analysis")
+
+
+
+ggsave("causal_graph.png", width = 8, height = 6)
+```
+
+```{r}
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(rsvg)
+
+# Define the flow diagram
+graph <- grViz("
+digraph flowchart {
+  graph [layout = dot, rankdir = TB]
+  
+  node [shape = rectangle, fontname = Arial]
+
+  # Nodes
+  Start [label = 'Start']
+  SelectVars [label = 'Selecting variables\nwith a Causal graph', shape = diamond]
+  VarType [label = 'Categorical/Continuous Variables']
+  Explore [label = 'Exploration of\ndata']
+  MissingValues [label = 'Address Missing\nValues']
+  FitModel [label = 'Fitting Multiple\nLinear Regression Model']
+  Assumptions [label = 'Model assumptions\nare violated?', shape = diamond]
+  Remedial [label = 'Take remedial\nmeasures']
+  Hypothesis [label = 'Hypothesis Testing']
+  Conclusion [label = 'Conclusion']
+  Stop [label = 'Stop']
+
+  # Edges
+  Start -> SelectVars
+  SelectVars -> Explore
+  Explore -> VarType
+  Explore -> FitModel
+  Explore -> MissingValues
+  FitModel -> Assumptions
+  Assumptions -> Remedial [label = 'Yes']
+  Assumptions -> Hypothesis [label = 'No']
+  Remedial -> FitModel
+  Hypothesis -> Conclusion
+  Conclusion -> Stop
+
+  # Subgraphs for horizontal alignment
+  { rank = same; VarType; MissingValues }
+}
+")
+
+# Render the flow diagram
+graph
+
+
+# Render the diagram
+svg_code <- export_svg(graph)
+
+# Save as PNG file
+rsvg_png(charToRaw(svg_code), "flow_diagram.png")
+```
