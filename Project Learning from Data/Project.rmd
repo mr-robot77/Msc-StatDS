@@ -404,4 +404,61 @@ svg_code <- export_svg(graph)
 
 # Save as PNG file
 rsvg_png(charToRaw(svg_code), "flow_diagram.png")
+
+# Display the saved PNG
+knitr::include_graphics("flow_diagram.png")
+```
+
+```{r}
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(rsvg)
+
+# Define the causal graph
+graph <- grViz("
+digraph causal_graph {
+  graph [layout = dot, rankdir = TB]
+
+  # Node definitions
+  subgraph cluster_confounders {
+    label = 'Confounders';
+    style = dashed;
+    Confounders [label = 'Region\\nYears', shape = circle];
+  }
+
+  subgraph cluster_targets {
+    label = 'Target Variables';
+    style = dashed;
+    Lutum [label = 'Lutum', shape = rectangle];
+    Silt [label = 'Silt', shape = rectangle];
+    Crop [label = 'Crop', shape = rectangle];
+  }
+
+  Outcome [label = 'Cstock', shape = rectangle];
+
+  # Edges
+  Confounders -> Lutum;
+  Confounders -> Silt;
+  Confounders -> Crop;
+  Lutum -> Outcome;
+  Silt -> Outcome;
+  Crop -> Outcome;
+  Confounders -> Outcome;
+}
+")
+
+# Render the graph inline
+graph
+
+# Convert the graph to SVG
+svg_code <- export_svg(graph)
+
+# Save the SVG as a PNG file
+rsvg_png(charToRaw(svg_code), "causal_graph.png")
+
+# Output confirmation message
+cat("Graph saved as 'causal_graph.png' in your working directory.\n")
+
+# Display the saved PNG
+knitr::include_graphics("causal_graph.png")
 ```
